@@ -10,4 +10,4 @@ Valid *GLSL* (specifically *ESSL 3.0*) are also valid *GLSL++* programs. It enha
 * Better error messages
 * Type-safe alternatives for preprocessor directives
 
-The transpiler is written in TypeScript. Performance is a primary concern, *GLSL++* will never be the bottleneck of your build pipeline. The transpiler is compatible with both Node.js and modern browser environments.
+https://www.khronos.org/registry/OpenGL/specs/es/3.0/GLSL_ES_Specification_3.00.pdf
