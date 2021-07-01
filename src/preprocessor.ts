@@ -24,9 +24,11 @@ export class Preprocessor {
 
     private macros: Record<string, Macro>;
 
-    // TODO: store cond values + ignore branch *only if every previous branch was false*.
-    // ignored branches values' should be set to false, so that they are actually ignored
     private condStack: { kind: "if" | "elif" | "else", value: boolean }[];
+
+    private versionValue: "100" | "300" | null;
+
+    private firstLine = true;
 
     constructor(
         source: string,
@@ -40,6 +42,7 @@ export class Preprocessor {
         this.errors = [];
         this.macros = Object.fromEntries(defines.map((name) => [name, {}]));
         this.condStack = [];
+        this.versionValue = null;
     }
 
     run(): Preprocessor.Output {
@@ -69,17 +72,18 @@ export class Preprocessor {
         return {
             tokens: this.output,
             errors: this.errors,
+            version: this.versionValue
         };
     }
 
     private line() {
         const lineStart = this.cursor;
         this.skip(__Kind.Whitespace);
-        if (this.match(__Kind.Hash)) return this.directive();
-        // we didn't find a directive, continue until done or newline
-        // then push all the tokens into output if we aren't ignoring
-        // this part of the code due to conditional compilation
-        if (this.ignore()) {
+        if (this.match(__Kind.Hash)) {
+            this.directive();
+            this.firstLine = false;
+            return;
+        } else if (this.ignore()) {
             while (!this.done() && !this.match(__Kind.NewLine)) this.advance();
         } else {
             for (let pos = lineStart; pos < this.cursor; ++pos)
@@ -97,6 +101,7 @@ export class Preprocessor {
                 }
             }
         }
+        this.firstLine = false;
     }
 
     /**
@@ -115,13 +120,11 @@ export class Preprocessor {
                 let parens = 1;
                 const args = [];
                 do {
-                    // if a call to a macro that requires at least one argument does not contain
-                    // at least some whitespace, then it is an error according to the C standard
-                    // but Chrome's GLSL preprocessor doesn't consider this an error
-                    // TODO: which should I follow?
-                    /* if (this.check(__Kind.RightParen)) break;
-                    else this.skip(__Kind.Whitespace); */
-
+                    // note: behavior of macro call expansion differs between C preprocessors and
+                    // GLSL ones in major browsers (Chrome, Firefox)
+                    // if a macro that has parameters is invoked with none, then according to the 
+                    // C standard, that is an error. in Chrome/Firefox, this is not an error,
+                    // and the empty arg is substituted into the macro body as an empty token list
                     this.skip(__Kind.Whitespace);
 
                     const argTokens = [];
@@ -242,6 +245,7 @@ export class Preprocessor {
                 case "elif": return this.elif();
                 case "endif": return this.endif();
                 case "error": return this.error();
+                case "version": return this.version();
                 case "pragma": return this.pragma();
                 case "extension": return this.extension();
                 case "line": {
@@ -620,6 +624,42 @@ export class Preprocessor {
         throw new Preprocessor.Error(self, message.join(""));
     }
 
+    private version() {
+        const self = this.previous()!;
+        if (!this.firstLine) {
+            throw new Preprocessor.Error(self, "'#version' may only appear on the first line");
+        }
+        this.skip(__Kind.Whitespace);
+        if (!this.match(__Kind.Number)) {
+            throw new Preprocessor.Error(self, "Version must be one of: '100', '300 es'");
+        }
+        const value = this.previous()!;
+        this.skip(__Kind.Whitespace);
+
+        switch (value.lexeme) {
+            case "100": {
+                this.versionValue = "100";
+                break;
+            }
+            case "300": {
+                this.versionValue = "300";
+                if (!this.match(__Kind.Identifier) || this.previous()!.lexeme !== "es") {
+                    throw new Preprocessor.Error(self, "Version must be one of: '100', '300 es'");
+                }
+                break;
+            }
+            default: throw new Preprocessor.Error(self, "Version must be one of: '100', '300 es'");
+        }
+
+        while (!this.done()) {
+            const token = this.advance();
+            if (!token) break;
+            if (token.kind === __Kind.NewLine) break;
+            if (token.kind !== __Kind.Whitespace)
+                throw new Preprocessor.Error(self, "Version must be one of: '100', '300 es'");
+        }
+    }
+
     private pragma() {
         let ws: Token | null = null;
         if (this.match(__Kind.Whitespace)) ws = this.previous()!;
@@ -797,6 +837,10 @@ const op = {
     },
 }
 
+const builtins = {
+
+}
+
 export namespace Preprocessor {
     export class Error extends globalThis.Error {
         readonly token: Token | null;
@@ -815,5 +859,6 @@ export namespace Preprocessor {
     export interface Output {
         tokens: Token[],
         errors: Error[],
+        version: "300" | "100" | null
     }
 }

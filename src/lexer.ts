@@ -14,7 +14,6 @@ export class Lexer {
         this.pos = 0;
     }
 
-    // TODO: @Speed measure the frequency of tokens and increase their priority
     next(): Token | null {
         /* next: */ while (true) {
             if (this.done) return null;

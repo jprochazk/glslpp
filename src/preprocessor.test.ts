@@ -190,7 +190,12 @@ describe("Preprocessor", () => {
         ["#undef 0", ["Expected identifier"]],
         ["#define A(a,b) x\nA()", ["Not enough params to invoke macro"]],
         ["#define A(x) x\nA(0,0)", ["Too many params to invoke macro"]],
-        ["#define A(x) x\nA(0", ["Missing 1 closing ')'"]]
+        ["#define A(x) x\nA(0", ["Missing 1 closing ')'"]],
+        ["\n#version wrong", ["'#version' may only appear on the first line"]],
+        ["#version 300 es\n#version 300 es", ["'#version' may only appear on the first line"]],
+        ["#version wrong", ["Version must be one of: '100', '300 es'"]],
+        ["#version 100 es", ["Version must be one of: '100', '300 es'"]],
+        ["#version 300 es this is not valid", ["Version must be one of: '100', '300 es'"]]
     ])("Errors", (source: string, expected: string[]) => {
         expect(e(source).map(e => e.message)).toEqual(expected);
     });
@@ -272,5 +277,12 @@ describe("Preprocessor", () => {
             "#line adfsjko adfsjkl adfsjkl adfs",
             "test"
         ))).toEqual("test")
+    });
+
+    it.each([
+        ["#version 300 es", "300"],
+        ["#version 100", "100"]
+    ])("Processes '#version'", (input: string, expected: string) => {
+        expect(new Preprocessor(input).run().version).toEqual(expected);
     });
 });
