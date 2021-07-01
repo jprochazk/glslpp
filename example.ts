@@ -1,11 +1,12 @@
 /* eslint-env node */
 
 import { Lexer } from "./src/lexer";
+import { Preprocessor } from "./src/preprocessor";
+
+new Lexer("0x7fff").all();
 
 const source = [
-    "#define PI 3.1415926",
+    "#pragma optimize(off)",
+    "#extension all : required"
 ].join("\n");
-console.log([...new Lexer(source)].map(t => t.toString()));
-/* for (const token of new Lexer(source)) {
-    console.log(token.kind, token.lexeme, token.error ? token.error : "");
-} */
+console.log(new Preprocessor(source).run().tokens.map(t => t.lexeme).join(""));

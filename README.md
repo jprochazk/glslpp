@@ -2,10 +2,10 @@
 
 A superset of *GLSL* that transpiles to it.
 
-Valid *GLSL* (specifically *ESSL 3.0*) are also valid *GLSL++* programs. It enhances *GLSL* with the following:
+It enhances *GLSL* with the following:
 * Modules
 * Templates
-* Enhanced standard library
+* Larger standard library
 * Vertex and Fragment stages in the same file
 * Better error messages
 * Type-safe alternatives for preprocessor directives

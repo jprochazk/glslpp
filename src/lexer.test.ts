@@ -1,34 +1,46 @@
 
-import { Lexer, Token } from "./lexer";
+import { Token, __Kind } from "./Token";
+import { Lexer } from "./lexer";
 
-const t = (k: Token.Kind, l: string) => new Token(l, k, 0, l.length);
-const sc = t(Token.Kind.Semicolon, ";");
-const lp = t(Token.Kind.LeftParen, "(");
-const rp = t(Token.Kind.RightParen, ")");
-const lbc = t(Token.Kind.LeftBrace, "{");
-const rbc = t(Token.Kind.RightBrace, "}");
-// const lbk = t(Token.Kind.LeftBracket, "[");
-// const rbk = t(Token.Kind.RightBracket, "]");
-const h = t(Token.Kind.Hash, "#");
-// const bs = t(Token.Kind.BackSlash, "\\");
-const eq = t(Token.Kind.Equal, "=");
-const c = t(Token.Kind.Comma, ".");
-const sub = t(Token.Kind.Minus, "-");
-// const add = t(Token.Kind.Plus, "+");
-const div = t(Token.Kind.Slash, "/");
-const mul = t(Token.Kind.Star, "*");
-const d = t(Token.Kind.Dot, ".");
-const id = (l: TemplateStringsArray) => t(Token.Kind.Identifier, l[0]);
-const n = (l: TemplateStringsArray) => t(Token.Kind.Number, l[0]);
+const t = (k: number, l: string) => new Token(l, k, 0, l.length);
+const sc = t(__Kind.Semicolon, ";");
+const lp = t(__Kind.LeftParen, "(");
+const rp = t(__Kind.RightParen, ")");
+const lbc = t(__Kind.LeftBrace, "{");
+const rbc = t(__Kind.RightBrace, "}");
+// const lbk = t(__Kind.LeftBracket, "[");
+// const rbk = t(__Kind.RightBracket, "]");
+const h = t(__Kind.Hash, "#");
+// const bs = t(__Kind.BackSlash, "\\");
+const eq = t(__Kind.Equal, "=");
+const c = t(__Kind.Comma, ",");
+const sub = t(__Kind.Minus, "-");
+// const add = t(__Kind.Plus, "+");
+const div = t(__Kind.Slash, "/");
+const mul = t(__Kind.Star, "*");
+const d = t(__Kind.Dot, ".");
+const id = (l: TemplateStringsArray) => t(__Kind.Identifier, l[0]);
+const n = (l: TemplateStringsArray) => t(__Kind.Number, l[0]);
+const lc = (l: TemplateStringsArray) => t(__Kind.LineComment, l[0]);
+const bc = (l: TemplateStringsArray) => t(__Kind.BlockComment, l[0]);
+const ws = (l: TemplateStringsArray) => t(__Kind.Whitespace, l[0]);
+const nl = t(__Kind.NewLine, "\n");
+const sp = ws` `;
 
 describe("Lexer", () => {
     it("Whitespace", () => {
-        const actual = new Lexer([
+        const source = [
             "                ",
             " \t\r\v\v\f       \v\f  ",
-        ].join("\n")).next();
-        expect(actual).toBeNull();
+        ].join("\n");
+        const expected: Token[] = [
+            ws`                `, nl,
+            ws` \t\r\v\v\f       \v\f  `,
+        ];
+        const actual = [...new Lexer(source)];
+        expect(actual.map(t => t.toString())).toEqual(expected.map(t => t.toString()));
     });
+    // Tests that lexer correctly processes numbers
     it.each([
         ["100.001", n`100.001`],
         ["100.", n`100.`],
@@ -56,57 +68,60 @@ describe("Lexer", () => {
         [".001e+100f", n`.001e+100f`],
         ["100", n`100`],
         ["100u", n`100u`],
+        ["0100", n`0100`],
+        ["0x7fff", n`0x7fff`],
     ])("Numeric literal", (source: string, expected: Token) => {
         const actual = new Lexer(source).next();
         expect(actual).not.toBeNull();
         expect(actual!.toString()).toEqual(expected.toString());
     });
+    // Tests that lexer correctly processes operators
     it.each([
-        ["(", t(Token.Kind.LeftParen, "(")],
-        [")", t(Token.Kind.RightParen, ")")],
-        ["[", t(Token.Kind.LeftBracket, "[")],
-        ["]", t(Token.Kind.RightBracket, "]")],
-        [";", t(Token.Kind.Semicolon, ";")],
-        ["{", t(Token.Kind.LeftBrace, "{")],
-        ["}", t(Token.Kind.RightBrace, "}")],
-        ["\\", t(Token.Kind.BackSlash, "\\")],
-        ["#", t(Token.Kind.Hash, "#")],
-        [".", t(Token.Kind.Dot, ".")],
-        ["+", t(Token.Kind.Plus, "+")],
-        ["++", t(Token.Kind.PlusPlus, "++")],
-        ["+=", t(Token.Kind.PlusEqual, "+=")],
-        ["-", t(Token.Kind.Minus, "-")],
-        ["--", t(Token.Kind.MinusMinus, "--")],
-        ["-=", t(Token.Kind.MinusEqual, "-=")],
-        ["~", t(Token.Kind.Tilde, "~")],
-        ["!=", t(Token.Kind.BangEqual, "!=")],
-        ["*", t(Token.Kind.Star, "*")],
-        ["*=", t(Token.Kind.StarEqual, "*=")],
-        ["/", t(Token.Kind.Slash, "/")],
-        ["/=", t(Token.Kind.SlashEqual, "/=")],
-        ["%", t(Token.Kind.Percent, "%")],
-        ["%=", t(Token.Kind.PercentEqual, "%=")],
-        ["<", t(Token.Kind.Lower, "<")],
-        ["<=", t(Token.Kind.LowerEqual, "<=")],
-        ["<<", t(Token.Kind.LowerLower, "<<")],
-        ["<<=", t(Token.Kind.LowerLowerEqual, "<<=")],
-        [">", t(Token.Kind.Greater, ">")],
-        [">=", t(Token.Kind.GreaterEqual, ">=")],
-        [">>", t(Token.Kind.GreaterGreater, ">>")],
-        [">>=", t(Token.Kind.GreaterGreaterEqual, ">>=")],
-        ["==", t(Token.Kind.EqualEqual, "==")],
-        ["&", t(Token.Kind.And, "&")],
-        ["&&", t(Token.Kind.AndAnd, "&&")],
-        ["&=", t(Token.Kind.AndEqual, "&=")],
-        ["^", t(Token.Kind.Caret, "^")],
-        ["^^", t(Token.Kind.CaretCaret, "^^")],
-        ["^=", t(Token.Kind.CaretEqual, "^=")],
-        ["|", t(Token.Kind.Pipe, "|")],
-        ["||", t(Token.Kind.PipePipe, "||")],
-        ["|=", t(Token.Kind.PipeEqual, "|=")],
-        ["?", t(Token.Kind.Question, "?")],
-        [":", t(Token.Kind.Colon, ":")],
-        [",", t(Token.Kind.Comma, ",")],
+        ["(", t(__Kind.LeftParen, "(")],
+        [")", t(__Kind.RightParen, ")")],
+        ["[", t(__Kind.LeftBracket, "[")],
+        ["]", t(__Kind.RightBracket, "]")],
+        [";", t(__Kind.Semicolon, ";")],
+        ["{", t(__Kind.LeftBrace, "{")],
+        ["}", t(__Kind.RightBrace, "}")],
+        ["\\", t(__Kind.BackSlash, "\\")],
+        ["#", t(__Kind.Hash, "#")],
+        [".", t(__Kind.Dot, ".")],
+        ["+", t(__Kind.Plus, "+")],
+        ["++", t(__Kind.PlusPlus, "++")],
+        ["+=", t(__Kind.PlusEqual, "+=")],
+        ["-", t(__Kind.Minus, "-")],
+        ["--", t(__Kind.MinusMinus, "--")],
+        ["-=", t(__Kind.MinusEqual, "-=")],
+        ["~", t(__Kind.Tilde, "~")],
+        ["!=", t(__Kind.BangEqual, "!=")],
+        ["*", t(__Kind.Star, "*")],
+        ["*=", t(__Kind.StarEqual, "*=")],
+        ["/", t(__Kind.Slash, "/")],
+        ["/=", t(__Kind.SlashEqual, "/=")],
+        ["%", t(__Kind.Percent, "%")],
+        ["%=", t(__Kind.PercentEqual, "%=")],
+        ["<", t(__Kind.Lower, "<")],
+        ["<=", t(__Kind.LowerEqual, "<=")],
+        ["<<", t(__Kind.LowerLower, "<<")],
+        ["<<=", t(__Kind.LowerLowerEqual, "<<=")],
+        [">", t(__Kind.Greater, ">")],
+        [">=", t(__Kind.GreaterEqual, ">=")],
+        [">>", t(__Kind.GreaterGreater, ">>")],
+        [">>=", t(__Kind.GreaterGreaterEqual, ">>=")],
+        ["==", t(__Kind.EqualEqual, "==")],
+        ["&", t(__Kind.And, "&")],
+        ["&&", t(__Kind.AndAnd, "&&")],
+        ["&=", t(__Kind.AndEqual, "&=")],
+        ["^", t(__Kind.Caret, "^")],
+        ["^^", t(__Kind.CaretCaret, "^^")],
+        ["^=", t(__Kind.CaretEqual, "^=")],
+        ["|", t(__Kind.Pipe, "|")],
+        ["||", t(__Kind.PipePipe, "||")],
+        ["|=", t(__Kind.PipeEqual, "|=")],
+        ["?", t(__Kind.Question, "?")],
+        [":", t(__Kind.Colon, ":")],
+        [",", t(__Kind.Comma, ",")],
     ])("Non-alphanumeric", (source: string, expected: Token) => {
         const actual = new Lexer(source).next();
         expect(actual).not.toBeNull();
@@ -114,7 +129,7 @@ describe("Lexer", () => {
     });
 
     // The following fragments of a shader are from https://gist.github.com/galek/53557375251e1a942dfa, (c) 2015 Nick Galko, MIT license
-    it.each([
+    const fragments = [
         [[
             "layout(std140) uniform Transforms",
             "{",
@@ -129,17 +144,17 @@ describe("Lexer", () => {
             "    vec4 albedo;   // constant albedo color, used when textures are off",
             "};",
         ], [
-            id`layout`, lp, id`std140`, rp, id`uniform`, id`Transforms`,
-            lbc,
-            id`mat4x4`, id`world_matrix`, sc,
-            id`mat4x4`, id`view_matrix`, sc,
-            id`mat4x4`, id`proj_matrix`, sc,
-            id`mat3x3`, id`normal_matrix`, sc,
-            rbc, sc,
-            id`layout`, lp, id`std140`, rp, id`uniform`, id`Material`,
-            lbc,
-            id`vec4`, id`material`, sc,
-            id`vec4`, id`albedo`, sc,
+            id`layout`, lp, id`std140`, rp, sp, id`uniform`, sp, id`Transforms`, nl,
+            lbc, nl,
+            ws`    `, id`mat4x4`, sp, id`world_matrix`, sc, ws`  `, lc`// object's world position\n`,
+            ws`    `, id`mat4x4`, sp, id`view_matrix`, sc, ws`   `, lc`// view (camera) transform\n`,
+            ws`    `, id`mat4x4`, sp, id`proj_matrix`, sc, ws`   `, lc`// projection matrix\n`,
+            ws`    `, id`mat3x3`, sp, id`normal_matrix`, sc, sp, lc`// normal transformation matrix ( transpose(inverse(W * V)) )\n`,
+            rbc, sc, nl,
+            id`layout`, lp, id`std140`, rp, sp, id`uniform`, sp, id`Material`, nl,
+            lbc, nl,
+            ws`    `, id`vec4`, sp, id`material`, sc, sp, lc`// x - metallic, y - roughness, w - \"rim\" lighting\n`,
+            ws`    `, id`vec4`, sp, id`albedo`, sc, ws`   `, lc`// constant albedo color, used when textures are off\n`,
             rbc, sc,
         ]],
         [[
@@ -152,13 +167,14 @@ describe("Lexer", () => {
             "// constant light position, only one light source for testing (treated as point light)",
             "const vec4 light_pos = vec4(-2, 3, -2, 1);",
         ], [
-            id`uniform`, id`samplerCube`, id`envd`, sc,
-            id`uniform`, id`sampler2D`, id`tex`, sc,
-            id`uniform`, id`sampler2D`, id`norm`, sc,
-            id`uniform`, id`sampler2D`, id`spec`, sc,
-            id`uniform`, id`sampler2D`, id`iblbrdf`, sc,
-            h, id`define`, id`PI`, n`3.1415926`,
-            id`const`, id`vec4`, id`light_pos`, eq, id`vec4`, lp, sub, n`2`, c, n`3`, c, sub, n`2`, c, n`1`, rp, sc
+            id`uniform`, sp, id`samplerCube`, sp, id`envd`, sc, ws`  `, lc`// prefiltered env cubemap\n`,
+            id`uniform`, sp, id`sampler2D`, sp, id`tex`, sc, ws`     `, lc`// base texture (albedo)\n`,
+            id`uniform`, sp, id`sampler2D`, sp, id`norm`, sc, ws`    `, lc`// normal map\n`,
+            id`uniform`, sp, id`sampler2D`, sp, id`spec`, sc, ws`    `, lc`// \"factors\" texture (G channel used as roughness)\n`,
+            id`uniform`, sp, id`sampler2D`, sp, id`iblbrdf`, sc, sp, lc`// IBL BRDF normalization precalculated tex\n`,
+            h, id`define`, sp, id`PI`, sp, n`3.1415926`, nl,
+            lc`// constant light position, only one light source for testing (treated as point light)\n`,
+            id`const`, sp, id`vec4`, sp, id`light_pos`, sp, eq, sp, id`vec4`, lp, sub, n`2`, c, sp, n`3`, c, sp, sub, n`2`, c, sp, n`1`, rp, sc
         ]],
         [[
             "// compute fresnel specular factor for given base specular and product",
@@ -170,10 +186,14 @@ describe("Lexer", () => {
             "// following functions are copies of UE4",
             "// for computing cook-torrance specular lighting terms",
         ], [
-            id`vec3`, id`fresnel_factor`, lp, id`in`, id`vec3`, id`f0`, c, id`in`, id`float`, id`product`, rp,
-            lbc,
-            id`return`, id`mix`, lp, id`f0`, c, id`vec3`, lp, n`1.0`, rp, c, id`pow`, lp, n`1.01`, sub, id`product`, c, n`5.0`, rp, rp, sc,
-            rbc,
+            lc`// compute fresnel specular factor for given base specular and product\n`,
+            lc`// product could be NdV or VdH depending on used technique\n`,
+            id`vec3`, sp, id`fresnel_factor`, lp, id`in`, sp, id`vec3`, sp, id`f0`, c, sp, id`in`, sp, id`float`, sp, id`product`, rp, nl,
+            lbc, nl,
+            ws`    `, id`return`, sp, id`mix`, lp, id`f0`, c, sp, id`vec3`, lp, n`1.0`, rp, c, sp, id`pow`, lp, n`1.01`, sp, sub, sp, id`product`, c, sp, n`5.0`, rp, rp, sc, nl,
+            rbc, nl,
+            lc`// following functions are copies of UE4\n`,
+            lc`// for computing cook-torrance specular lighting terms`,
         ]],
         [[
             "float D_beckmann(in float roughness, in float NdH)",
@@ -184,16 +204,16 @@ describe("Lexer", () => {
             "    return exp((NdH2 - 1.0) / (m2 * NdH2)) / (PI * m2 * NdH2 * NdH2);",
             "}",
         ], [
-            id`float`, id`D_beckmann`, lp, id`in`, id`float`, id`roughness`, c, id`in`, id`float`, id`NdH`, rp,
-            lbc,
-            id`float`, id`m`, eq, id`roughness`, mul, id`roughness`, sc,
-            id`float`, id`m2`, eq, id`m`, mul, id`m`, sc,
-            id`float`, id`NdH2`, eq, id`NdH`, mul, id`NdH`, sc,
-            id`return`, id`exp`, lp, lp, id`NdH2`, sub, n`1.0`, rp, div, lp, id`m2`, mul, id`NdH2`, rp, rp, div, lp, id`PI`, mul, id`m2`, mul, id`NdH2`, mul, id`NdH2`, rp, sc,
+            id`float`, sp, id`D_beckmann`, lp, id`in`, sp, id`float`, sp, id`roughness`, c, sp, id`in`, sp, id`float`, sp, id`NdH`, rp, nl,
+            lbc, nl,
+            ws`    `, id`float`, sp, id`m`, sp, eq, sp, id`roughness`, sp, mul, sp, id`roughness`, sc, nl,
+            ws`    `, id`float`, sp, id`m2`, sp, eq, sp, id`m`, sp, mul, sp, id`m`, sc, nl,
+            ws`    `, id`float`, sp, id`NdH2`, sp, eq, sp, id`NdH`, sp, mul, sp, id`NdH`, sc, nl,
+            ws`    `, id`return`, sp, id`exp`, lp, lp, id`NdH2`, sp, sub, sp, n`1.0`, rp, sp, div, sp, lp, id`m2`, sp, mul, sp, id`NdH2`, rp, rp, sp, div, sp, lp, id`PI`, sp, mul, sp, id`m2`, sp, mul, sp, id`NdH2`, sp, mul, sp, id`NdH2`, rp, sc, nl,
             rbc
         ]],
         [[
-            "// simple phong specular calculation with normalization",
+            "/* simple phong specular calculation with normalization */",
             "vec3 phong_specular(in vec3 V, in vec3 L, in vec3 N, in vec3 specular, in float roughness)",
             "{",
             "    vec3 R = reflect(-L, N);",
@@ -202,12 +222,13 @@ describe("Lexer", () => {
             "    return min(1.0, 3.0 * 0.0398 * k) * pow(spec, min(10000.0, k)) * specular;",
             "}",
         ], [
-            id`vec3`, id`phong_specular`, lp, id`in`, id`vec3`, id`V`, c, id`in`, id`vec3`, id`L`, c, id`in`, id`vec3`, id`N`, c, id`in`, id`vec3`, id`specular`, c, id`in`, id`float`, id`roughness`, rp,
-            lbc,
-            id`vec3`, id`R`, eq, id`reflect`, lp, sub, id`L`, c, id`N`, rp, sc,
-            id`float`, id`spec`, eq, id`max`, lp, n`0.0`, c, id`dot`, lp, id`V`, c, id`R`, rp, rp, sc,
-            id`float`, id`k`, eq, n`1.999`, div, lp, id`roughness`, mul, id`roughness`, rp, sc,
-            id`return`, id`min`, lp, n`1.0`, c, n`3.0`, mul, n`0.0398`, mul, id`k`, rp, mul, id`pow`, lp, id`spec`, c, id`min`, lp, n`10000.0`, c, id`k`, rp, rp, mul, id`specular`, sc,
+            bc`/* simple phong specular calculation with normalization */`, nl,
+            id`vec3`, sp, id`phong_specular`, lp, id`in`, sp, id`vec3`, sp, id`V`, c, sp, id`in`, sp, id`vec3`, sp, id`L`, c, sp, id`in`, sp, id`vec3`, sp, id`N`, c, sp, id`in`, sp, id`vec3`, sp, id`specular`, c, sp, id`in`, sp, id`float`, sp, id`roughness`, rp, nl,
+            lbc, nl,
+            ws`    `, id`vec3`, sp, id`R`, sp, eq, sp, id`reflect`, lp, sub, id`L`, c, sp, id`N`, rp, sc, nl,
+            ws`    `, id`float`, sp, id`spec`, sp, eq, sp, id`max`, lp, n`0.0`, c, sp, id`dot`, lp, id`V`, c, sp, id`R`, rp, rp, sc, nl,
+            ws`    `, id`float`, sp, id`k`, sp, eq, sp, n`1.999`, sp, div, sp, lp, id`roughness`, sp, mul, sp, id`roughness`, rp, sc, nl,
+            ws`    `, id`return`, sp, id`min`, lp, n`1.0`, c, sp, n`3.0`, sp, mul, sp, n`0.0398`, sp, mul, sp, id`k`, rp, sp, mul, sp, id`pow`, lp, id`spec`, c, sp, id`min`, lp, n`10000.0`, c, sp, id`k`, rp, rp, sp, mul, sp, id`specular`, sc, nl,
             rbc
         ]],
         [[
@@ -218,15 +239,23 @@ describe("Lexer", () => {
             "vec3 base = albedo.xyz;",
             "#endif",
         ], [
-            h, id`if`, id`USE_ALBEDO_MAP`,
-            id`vec3`, id`base`, eq, id`texture2D`, lp, id`tex`, c, id`texcoord`, rp, d, id`xyz`, sc,
-            h, id`else`,
-            id`vec3`, id`base`, eq, id`albedo`, d, id`xyz`, sc,
+            lc`// albedo/specular base\n`,
+            h, id`if`, sp, id`USE_ALBEDO_MAP`, nl,
+            id`vec3`, sp, id`base`, sp, eq, sp, id`texture2D`, lp, id`tex`, c, sp, id`texcoord`, rp, d, id`xyz`, sc, nl,
+            h, id`else`, nl,
+            id`vec3`, sp, id`base`, sp, eq, sp, id`albedo`, d, id`xyz`, sc, nl,
             h, id`endif`
         ]],
-    ])("Sample shader fragments", (source: string[], expected: Token[]) => {
+    ] as [string[], Token[]][];
+    // Tests that lexer's output is as expected
+    it.each(fragments)("Sample shader fragments", (source: string[], expected: Token[]) => {
         const actual = [...new Lexer(source.join("\n"))];
         expect(actual).not.toHaveLength(0);
         expect(actual.map(t => t.toString())).toEqual(expected.map(t => t.toString()));
+    });
+    // Tests that joining lexemes of tokens *after* lexing source will produce the same source.
+    it.each(fragments)("Preservation", (source: string[]) => {
+        const actual = [...new Lexer(source.join("\n"))];
+        expect(actual.map(v => v.lexeme).join("")).toEqual(source.join("\n"));
     });
 });

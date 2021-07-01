@@ -1,7 +1,7 @@
 {
     "name": "glslpp",
     "version": "0.0.0",
-    "description": "GLSL enhanced",
+    "description": "GLSL++",
     "author": "Jan Procházka",
     "license": "MIT",
     "homepage": "https://github.com/jprochazk/glslpp",
