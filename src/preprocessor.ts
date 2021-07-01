@@ -34,9 +34,9 @@ export class Preprocessor {
         source: string,
         defines: string[] = [],
     ) {
-        this.source = source;
-
-        this.tokens = [];
+        source = source.replace(ESCAPED_NEWLINE_REGEX, "");
+        this.source = source
+        this.tokens = new Lexer(source).all();
         this.output = [];
         this.cursor = 0;
         this.errors = [];
@@ -46,9 +46,6 @@ export class Preprocessor {
     }
 
     run(): Preprocessor.Output {
-        const source = this.source.replace(ESCAPED_NEWLINE_REGEX, "");
-        this.tokens = new Lexer(source).all();
-
         // the preprocessor goes through one line at a time
         // whitespace is significant, because a directive is terminated by '\n'
         while (!this.done()) try {
