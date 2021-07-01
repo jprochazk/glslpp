@@ -6,6 +6,7 @@ interface Macro {
     params?: string[],
     /** Macro body */
     body?: Token[],
+    builtin?: boolean,
 }
 
 const ESCAPED_NEWLINE_REGEX = /\\\n/g;
@@ -43,6 +44,11 @@ export class Preprocessor {
         this.macros = Object.fromEntries(defines.map((name) => [name, {}]));
         this.condStack = [];
         this.versionValue = null;
+
+        this.macros["GL_ES"] = {
+            body: [new Token("", __Kind.Number, 0, 1, "1", 1)],
+            builtin: true,
+        }
     }
 
     run(): Preprocessor.Output {
@@ -75,7 +81,7 @@ export class Preprocessor {
 
     private line() {
         const lineStart = this.cursor;
-        this.skip(__Kind.Whitespace);
+        this.skipWSC();
         if (this.match(__Kind.Hash)) {
             this.directive();
             this.firstLine = false;
@@ -117,13 +123,13 @@ export class Preprocessor {
                 let parens = 1;
                 const args = [];
                 do {
+                    this.skipWSC();
+
                     // note: behavior of macro call expansion differs between C preprocessors and
                     // GLSL ones in major browsers (Chrome, Firefox)
                     // if a macro that has parameters is invoked with none, then according to the 
                     // C standard, that is an error. in Chrome/Firefox, this is not an error,
                     // and the empty arg is substituted into the macro body as an empty token list
-                    this.skip(__Kind.Whitespace);
-
                     const argTokens = [];
                     while (!this.done() && (parens > 1 || !this.check(__Kind.Comma)) && parens !== 0) {
                         const token = this.advance();
@@ -229,7 +235,7 @@ export class Preprocessor {
 
     private directive() {
         // /\s[a-zA-Z_][a-zA-Z_0-9]*/
-        this.skip(__Kind.Whitespace);
+        this.skipWSC();
         if (this.match(__Kind.Identifier)) {
             const name = this.previous()!.lexeme;
             switch (name) {
@@ -256,7 +262,7 @@ export class Preprocessor {
     }
 
     private define() {
-        this.skip(__Kind.Whitespace);
+        this.skipWSC();
         const name = this.consume(__Kind.Identifier, "Expected identifier");
 
         if (name.lexeme in this.macros) {
@@ -266,19 +272,19 @@ export class Preprocessor {
         let params: string[] | undefined;
         if (this.match(__Kind.LeftParen)) {
             // function-like
-            this.skip(__Kind.Whitespace);
+            this.skipWSC();
             params = [];
             if (!this.check(__Kind.RightParen)) {
                 do {
-                    this.skip(__Kind.Whitespace);
+                    this.skipWSC();
                     params.push(this.consume(__Kind.Identifier, "Expected identifier").lexeme);
-                    this.skip(__Kind.Whitespace);
+                    this.skipWSC();
                 } while (this.match(__Kind.Comma));
             }
             this.consume(__Kind.RightParen, "Expected closing ')'");
         }
 
-        this.skip(__Kind.Whitespace);
+        this.skipWSC();
         const spanStart = this.cursor;
         let hadNewLine = false;
         while (!this.done() && (hadNewLine = this.match(__Kind.NewLine), !hadNewLine)) this.advance();
@@ -296,32 +302,35 @@ export class Preprocessor {
     }
 
     private undef() {
-        // TODO: it's an error to undefine built-ins
-        this.skip(__Kind.Whitespace);
-        const name = this.consume(__Kind.Identifier, "Expected identifier").lexeme;
-        delete this.macros[name];
+        this.skipWSC();
+        const name = this.consume(__Kind.Identifier, "Expected identifier");
+        if (this.macros[name.lexeme]?.builtin === true)
+            throw new Preprocessor.Error(name, "Attempted to undefine builtin macro");
+        delete this.macros[name.lexeme];
 
         while (!this.done() && !this.match(__Kind.NewLine)) this.advance();
     }
 
     private if() {
-        this.skip(__Kind.Whitespace);
+        this.skipWSC();
         const value = this.constExpr();
         this.condStack.push({ kind: "if", value });
     }
 
     private ifdef() {
-        this.skip(__Kind.Whitespace);
+        this.skipWSC();
         const name = this.consume(__Kind.Identifier, "Expected identifier");
         const value = name.lexeme in this.macros;
         this.condStack.push({ kind: "if", value });
+        while (!this.done() && !this.match(__Kind.NewLine)) this.advance();
     }
 
     private ifndef() {
-        this.skip(__Kind.Whitespace);
+        this.skipWSC();
         const name = this.consume(__Kind.Identifier, "Expected identifier");
         const value = !(name.lexeme in this.macros);
         this.condStack.push({ kind: "if", value });
+        while (!this.done() && !this.match(__Kind.NewLine)) this.advance();
     }
 
     private ignoreBranch(): boolean {
@@ -333,12 +342,13 @@ export class Preprocessor {
     }
 
     private elif() {
-        this.skip(__Kind.Whitespace);
+        this.skipWSC();
         const prevCond = this.condStack[this.condStack.length - 1];
         if (prevCond) {
             if (prevCond.kind !== "else") {
                 const value = this.constExpr() && !this.ignoreBranch();
                 this.condStack.push({ kind: "elif", value });
+                while (!this.done() && !this.match(__Kind.NewLine)) this.advance();
             } else {
                 throw new Preprocessor.Error(this.previous(), `Unexpected '#elif' after '#else'`);
             }
@@ -348,12 +358,12 @@ export class Preprocessor {
     }
 
     private else() {
-        while (!this.done() && !this.match(__Kind.NewLine)) this.advance();
         const prevCond = this.condStack[this.condStack.length - 1];
         if (prevCond) {
             if (prevCond.kind !== "else") {
                 const value = !this.ignoreBranch();
                 this.condStack.push({ kind: "else", value });
+                while (!this.done() && !this.match(__Kind.NewLine)) this.advance();
             } else {
                 throw new Preprocessor.Error(this.previous(), `Unexpected '#else' after '#else'`);
             }
@@ -373,7 +383,7 @@ export class Preprocessor {
     }
 
     private constExpr(): boolean {
-        this.skip(__Kind.Whitespace);
+        this.skipWSC();
         const exprTokens = [];
         while (!this.done() && !this.match(__Kind.NewLine)) {
             const token = this.advance()!;
@@ -615,7 +625,7 @@ export class Preprocessor {
 
     private error(): never {
         const self = this.previous();
-        this.skip(__Kind.Whitespace);
+        this.skipWSC();
         const message = [];
         while (!this.done() && !this.match(__Kind.NewLine)) message.push(this.advance()!.lexeme);
         throw new Preprocessor.Error(self, message.join(""));
@@ -626,12 +636,12 @@ export class Preprocessor {
         if (!this.firstLine) {
             throw new Preprocessor.Error(self, "'#version' may only appear on the first line");
         }
-        this.skip(__Kind.Whitespace);
+        this.skipWSC();
         if (!this.match(__Kind.Number)) {
             throw new Preprocessor.Error(self, "Version must be one of: '100', '300 es'");
         }
         const value = this.previous()!;
-        this.skip(__Kind.Whitespace);
+        this.skipWSC();
 
         switch (value.lexeme) {
             case "100": {
@@ -700,6 +710,12 @@ export class Preprocessor {
     private skip(kind: number) {
         while (this.check(kind)) this.advance();
     }
+
+    /** Skip whitespace and comments */
+    private skipWSC() {
+        while (this.check(__Kind.Whitespace) || this.check(__Kind.LineComment) || this.check(__Kind.BlockComment)) this.advance();
+    }
+
     /**
      * Attemps to consume token of `kind`. 
      * On success, returns `true`, and advances the cursor.
@@ -832,10 +848,6 @@ const op = {
         [UnaryOp.BitNot]: (r: number) => ~r,
         [UnaryOp.Not]: (r: number) => r === 0 ? 1 : 0,
     },
-}
-
-const builtins = {
-
 }
 
 export namespace Preprocessor {

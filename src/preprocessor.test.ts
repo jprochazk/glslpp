@@ -5,9 +5,12 @@ import { Preprocessor } from "./preprocessor";
 interface Macro {
     params?: string[],
     body?: Token[],
+    builtin?: boolean,
 }
 
-const preprocess = (input: string) => new Preprocessor(input).run().tokens.map(t => t.lexeme).join("");
+const preprocess = (input: string) => {
+    return new Preprocessor(input).run().tokens.map(t => t.lexeme).join("");
+}
 
 const s = (...fragments: string[]) => fragments.join("\n");
 const j = (...tokens: Token[]) => tokens.map(t => t.lexeme).join("");
@@ -20,16 +23,9 @@ const e = (...fragments: string[]) => {
 
 describe("Preprocessor", () => {
     it("Skips empty directives", () => {
-        const expected = s(
-            "this won't",
-            "neither will this"
-        );
-        const actual = preprocess(s(
+        expect(preprocess(s(
             "# this will be skipped",
-            "this won't",
-            "neither will this"
-        ));
-        expect(actual).toEqual(expected);
+        ))).toEqual("");
     });
 
     it.each([
@@ -74,6 +70,7 @@ describe("Preprocessor", () => {
         preprocessor.run();
         const defines = Object.fromEntries(Object.entries(
             (preprocessor as any).macros as Record<string, Macro>)
+            .filter(([, { builtin }]) => builtin !== true)
             .map(([name, { params, body }]) => ([name, { params, body: body && j(...body) }])));
 
         expect(defines).toEqual(expected);
@@ -143,12 +140,6 @@ describe("Preprocessor", () => {
             "(2*(1))"
         )],
         [s(
-            "#define strange(file) fprintf (file, \"%s %d\",",
-            "strange(stderr) p, 35)"
-        ), s(
-            "fprintf (stderr, \"%s %d\", p, 35)"
-        )],
-        [s(
             "#define foo (a, b)",
             "#define bar(x) lose((x))",
             "#define lose(x) (1 + (x))",
@@ -195,9 +186,18 @@ describe("Preprocessor", () => {
         ["#version 300 es\n#version 300 es", ["'#version' may only appear on the first line"]],
         ["#version wrong", ["Version must be one of: '100', '300 es'"]],
         ["#version 100 es", ["Version must be one of: '100', '300 es'"]],
-        ["#version 300 es this is not valid", ["Version must be one of: '100', '300 es'"]]
+        ["#version 300 es this is not valid", ["Version must be one of: '100', '300 es'"]],
+        ["#undef GL_ES", ["Attempted to undefine builtin macro"]],
+        ["#if $", ["Unexpected token"]],
+        ["#if 0\n#else\n#elif 1\n#endif", ["Unexpected '#elif' after '#else'"]],
+        ["#elif 1\n#endif", ["Unexpected '#elif' before '#if'", "Unexpected '#endif' before '#if'"]],
+        ["#if 0\n#else\n#else\n#endif", ["Unexpected '#else' after '#else'"]],
+        ["#else\n#endif", ["Unexpected '#else' before '#if'", "Unexpected '#endif' before '#if'"]],
+        ["#endif", ["Unexpected '#endif' before '#if'"]]
     ])("Errors", (source: string, expected: string[]) => {
-        expect(e(source).map(e => e.message)).toEqual(expected);
+        const actual = e(source).map(e => e.message);
+        // console.log(source);
+        expect(actual).toEqual(expected);
     });
 
     it("Preserves input with no directives", () => {
@@ -256,6 +256,16 @@ describe("Preprocessor", () => {
             "B",
             "#endif"
         ), "B\n"],
+        [s(
+            "#ifdef GL_ES",
+            "A",
+            "#endif"
+        ), "A\n"],
+        [s(
+            "#ifndef TEST",
+            "A",
+            "#endif"
+        ), "A\n"]
     ])("Conditionally ignores code", (input: string, expected: string) => {
         expect(preprocess(input)).toEqual(expected);
     });
@@ -284,5 +294,37 @@ describe("Preprocessor", () => {
         ["#version 100", "100"]
     ])("Processes '#version'", (input: string, expected: string) => {
         expect(new Preprocessor(input).run().version).toEqual(expected);
+    });
+
+    it.each([
+        "1 && 1",
+        "0 || 1",
+        "0 | 1",
+        "0 ^ 1",
+        "1 & 1",
+        "1 == 1",
+        "1 != 0",
+        "1 > 0",
+        "1 >= 0",
+        "0 < 1",
+        "0 <= 1",
+        "1 << 0",
+        "2 >> 1",
+        "0 + 1",
+        "2 - 1",
+        "1 * 1",
+        "2 / 2",
+        "1 % 2",
+        "!0",
+        "-(-1)",
+        "~(-2)",
+        "+1",
+        "((((((((((1))))))))))",
+    ])("Truthy expression", (input: string) => {
+        expect(preprocess(s(
+            `#if ${input}`,
+            "A",
+            "#endif"
+        ))).toEqual("A\n");
     });
 });
