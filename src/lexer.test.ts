@@ -1,5 +1,5 @@
 
-import { Token, __Kind } from "./Token";
+import { Token, __Kind } from "./token";
 import { Lexer } from "./lexer";
 
 const t = (k: number, l: string) => new Token(l, k, 0, l.length);
